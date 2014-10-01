@@ -13,6 +13,8 @@ import os
 
 
 def main():
+    """Main program"""
+
     parser = init_parser()
     args = parser.parse_args()
 
@@ -33,22 +35,22 @@ def main():
     if (args.token):
         config['token'] = args.token
 
-    gh = Github(**config)
+    ghs = Github(**config)
 
     # Get all of the given user's repos
     if args.organization:
-        user_repos = gh.repos.list_by_org(args.organization).all()
+        user_repos = ghs.repos.list_by_org(args.organization).all()
     else:
-        user_repos = gh.repos.list().all()
+        user_repos = ghs.repos.list().all()
 
     for repo in user_repos:
-        repo.user = gh.users.get(repo.owner.login)
+        repo.user = ghs.users.get(repo.owner.login)
         process_repo(repo, args)
 
 
 def init_parser():
     """
-    set up the argument parser
+    Set up the argument parser
     """
 
     parser = ArgumentParser(
@@ -85,6 +87,9 @@ def init_parser():
 
 
 def process_repo(repo, args):
+    """Processes a repository. Which is to say, clones or updates an existing
+    clone."""
+
     if not args.cron:
         print("Processing repo: %s" % (repo.full_name))
 
@@ -104,17 +109,21 @@ def process_repo(repo, args):
 
 
 def clone_repo(repo, backupdir, args):
+    """Clones a repository using the command line git tool."""
     if args.mirror:
         options = args.git + " --mirror"
     else:
         options = args.git
 
+    # TODO: replace with subprocess.
     os.system('git clone %s %s %s' % (
             options, repo.ssh_url if args.ssh else repo.git_url, backupdir))
 
 
 def update_repo(repo, backupdir, args):
-    savedPath = os.getcwd()
+    """Update an existing cloned repository via the command line git tool"""
+
+    saved_path = os.getcwd()
     os.chdir(backupdir)
 
     # GitHub => Local
@@ -140,11 +149,14 @@ def update_repo(repo, backupdir, args):
     os.system("git config --local cgit.clone-url %s" %
               (shell_escape(repo.clone_url),))
 
-    os.chdir(savedPath)
+    os.chdir(saved_path)
 
 
-def shell_escape(str):
-    return "'" + unicode(str.replace("'", "\\'")).encode("utf-8") + "'"
+def shell_escape(dirty_str):
+    """Escape a string for the shell. 
+
+    Should be made obsolete by using subprocess."""
+    return "'" + unicode(dirty_str.replace("'", "\\'")).encode("utf-8") + "'"
 
 
 if __name__ == "__main__":
