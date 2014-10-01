@@ -21,7 +21,7 @@ def main():
         args.git += "--quiet"
 
     # Make the connection to Github here.
-    config = { 'user': args.username }
+    config = {'user': args.username}
 
     if (args.password):
         config['password'] = args.password
@@ -51,34 +51,54 @@ def init_parser():
     set up the argument parser
     """
 
-    parser = ArgumentParser(description="makes a backup of all of a github user's repositories")
+    parser = ArgumentParser(
+        description="makes a backup of all of a github user's repositories")
 
     parser.add_argument("username", help="A Github username")
-    parser.add_argument("backupdir", help="The folder where you want your backups to go")
-    parser.add_argument("-c","--cron", help="Use this when running from a cron job", action="store_true")
-    parser.add_argument("-m","--mirror", help="Create a bare mirror", action="store_true")
-    parser.add_argument("-g","--git", help="Pass extra arguments to git", default="", metavar="ARGS")
-    parser.add_argument("-s", "--suffix", help="Add suffix to repository directory names", default="")
-    parser.add_argument("-p", "--password", help="Authenticate with Github API")
-    parser.add_argument("-P","--prefix", help="Add prefix to repository directory names", default="")
-    parser.add_argument("-o","--organization", help="Backup Organizational repositories")
-    parser.add_argument("-S","--ssh", help="Use SSH protocol", action="store_true")
-    parser.add_argument("-t","--token", help="Authenticate with Github API using OAuth token", default="")
-
+    parser.add_argument("backupdir",
+                        help="The folder where you want your backups to go")
+    parser.add_argument("-c", "--cron",
+                        help="Use this when running from a cron job",
+                        action="store_true")
+    parser.add_argument("-m", "--mirror",
+                        help="Create a bare mirror", action="store_true")
+    parser.add_argument("-g", "--git",
+                        default="", metavar="ARGS",
+                        help="Pass extra arguments to git")
+    parser.add_argument("-s", "--suffix",
+                        default="",
+                        help="Add suffix to repository directory names")
+    parser.add_argument("-p", "--password",
+                        help="Authenticate with Github API")
+    parser.add_argument("-P", "--prefix",
+                        default="",
+                        help="Add prefix to repository directory names")
+    parser.add_argument("-o", "--organization",
+                        help="Backup Organizational repositories")
+    parser.add_argument("-S", "--ssh",
+                        action="store_true",
+                        help="Use SSH protocol")
+    parser.add_argument("-t", "--token",
+                        default="",
+                        help="Authenticate with Github API using OAuth token")
     return parser
+
 
 def process_repo(repo, args):
     if not args.cron:
-        print("Processing repo: %s"%(repo.full_name))
+        print("Processing repo: %s" % (repo.full_name))
 
-    backupdir = "%s/%s"%(args.backupdir, args.prefix + repo.name + args.suffix)
-    config = "%s/%s"%(backupdir, "config" if args.mirror else ".git/config")
+    backupdir = "%s/%s" % (args.backupdir, args.prefix +
+                           repo.name + args.suffix)
+    config = "%s/%s" % (backupdir, "config" if args.mirror else ".git/config")
 
     if not os.access(config, os.F_OK):
-        if not args.cron: print("Repo doesn't exists, lets clone it")
+        if not args.cron:
+            print("Repo doesn't exists, lets clone it")
         clone_repo(repo, backupdir, args)
     else:
-        if not args.cron: print("Repo already exists, let's try to update it instead")
+        if not args.cron:
+            print("Repo already exists, let's try to update it instead")
 
     update_repo(repo, backupdir, args)
 
@@ -89,7 +109,8 @@ def clone_repo(repo, backupdir, args):
     else:
         options = args.git
 
-    os.system('git clone %s %s %s'%(options, repo.ssh_url if args.ssh else repo.git_url, backupdir))
+    os.system('git clone %s %s %s' % (
+            options, repo.ssh_url if args.ssh else repo.git_url, backupdir))
 
 
 def update_repo(repo, backupdir, args):
@@ -97,25 +118,34 @@ def update_repo(repo, backupdir, args):
     os.chdir(backupdir)
 
     # GitHub => Local
-    # TODO: use subprocess package and fork git into background (major performance boost expected)
+    # TODO: use subprocess package and fork git into
+    # background (major performance boost expected)
     if args.mirror:
-        os.system("git fetch %s"%(args.git + " --prune",))
+        os.system("git fetch %s" % (args.git + " --prune",))
     else:
-        os.system("git pull %s"%(args.git,))
+        os.system("git pull %s" % (args.git,))
 
     # Fetch description and owner (useful for gitweb, cgit etc.)
     # TODO: can we combine that in a single call to 'git config'
-    os.system("git config --local gitweb.description %s"%(shell_escape(repo.description),))
-    os.system("git config --local gitweb.owner %s"%(shell_escape("%s <%s>"%(repo.user.name, repo.user.email.encode("utf-8"))),))
+    os.system("git config --local gitweb.description %s" %
+              (shell_escape(repo.description),))
+    os.system("git config --local gitweb.owner %s" %
+              (shell_escape("%s <%s>" %
+                            (repo.user.name,
+                             repo.user.email.encode("utf-8"))),))
 
-    os.system("git config --local cgit.name %s"%(shell_escape(repo.name),))
-    os.system("git config --local cgit.defbranch %s"%(shell_escape(repo.default_branch),))
-    os.system("git config --local cgit.clone-url %s"%(shell_escape(repo.clone_url),))
-        
+    os.system("git config --local cgit.name %s" % (shell_escape(repo.name),))
+    os.system("git config --local cgit.defbranch %s" %
+              (shell_escape(repo.default_branch),))
+    os.system("git config --local cgit.clone-url %s" %
+              (shell_escape(repo.clone_url),))
+
     os.chdir(savedPath)
+
 
 def shell_escape(str):
     return "'" + unicode(str.replace("'", "\\'")).encode("utf-8") + "'"
+
 
 if __name__ == "__main__":
     main()
