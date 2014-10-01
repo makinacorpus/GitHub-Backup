@@ -71,30 +71,30 @@ def process_repo(repo, args):
 	if not args.cron:
 		print("Processing repo: %s"%(repo.full_name))
 
-	dir = "%s/%s"%(args.backupdir, args.prefix + repo.name + args.suffix)
-	config = "%s/%s"%(dir, "config" if args.mirror else ".git/config")
+	backupdir = "%s/%s"%(args.backupdir, args.prefix + repo.name + args.suffix)
+	config = "%s/%s"%(backupdir, "config" if args.mirror else ".git/config")
 
 	if not os.access(config, os.F_OK):
 		if not args.cron: print("Repo doesn't exists, lets clone it")
-		clone_repo(repo, dir, args)
+		clone_repo(repo, backupdir, args)
 	else:
 		if not args.cron: print("Repo already exists, let's try to update it instead")
 
-	update_repo(repo, dir, args)
+	update_repo(repo, backupdir, args)
 
 
-def clone_repo(repo, dir, args):
+def clone_repo(repo, backupdir, args):
 	if args.mirror:
 		options = args.git + " --mirror"
 	else:
 		options = args.git
 
-	os.system('git clone %s %s %s'%(options, repo.ssh_url if args.ssh else repo.git_url, dir))
+	os.system('git clone %s %s %s'%(options, repo.ssh_url if args.ssh else repo.git_url, backupdir))
 
 
-def update_repo(repo, dir, args):
+def update_repo(repo, backupdir, args):
 	savedPath = os.getcwd()
-	os.chdir(dir)
+	os.chdir(backupdir)
 
 	# GitHub => Local
 	# TODO: use subprocess package and fork git into background (major performance boost expected)
