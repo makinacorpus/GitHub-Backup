@@ -218,12 +218,6 @@ def update_repo(repo, backupdir, args, git_options):
     logging.debug("Changed to %s", saved_path)
     return None
 
-def shell_escape(dirty_str):
-    """Escape a string for the shell. 
-
-    Should be made obsolete by using subprocess."""
-    return "'" + unicode(dirty_str.replace("'", "\\'")).encode("utf-8") + "'"
-
 
 if __name__ == "__main__":
     main()
