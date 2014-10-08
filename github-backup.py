@@ -137,15 +137,37 @@ def process_repo(repo, args, git_options):
         logging.info("Repo doesn't exists, lets clone it")
         try:
             clone_repo(repo, backupdir, args, git_options)
+            update_repo(repo, backupdir, args, git_options)
         except subprocess.CalledProcessError:
-            # Don't try to update if clone failed.
-            return None
+            # clone_repo will bubble up this exception if it fails,
+            # so the update can be skipped.
+            pass
+    else:
+        update_repo(repo, backupdir, args, git_options)
 
-    update_repo(repo, backupdir, args, git_options)
+    if repo.has_wiki:
+        backupdir = os.path.join(args.backupdir,
+                                 args.prefix + repo.name 
+                                 + '.wiki' + args.suffix)
+        config = os.path.join(backupdir,
+                              "config" if args.mirror else ".git/config")
+        
+        if not os.access(config, os.F_OK):
+            logging.info("Wiki repo doesn't exists, lets clone it")
+            try:
+                clone_repo(repo, backupdir, args, git_options, wiki=True)
+                update_repo(repo, backupdir, args, git_options)
+            except subprocess.CalledProcessError:
+                # clone_repo will bubble up this exception if it fails,
+                # so the update can be skipped.
+                pass
+        else:
+            update_repo(repo, backupdir, args, git_options)
+
     return None
 
 
-def clone_repo(repo, backupdir, args, git_options):
+def clone_repo(repo, backupdir, args, git_options, wiki=False):
     """Clones a repository using the command line git tool."""
 
     logging.debug("In clone_repo:")
@@ -154,9 +176,13 @@ def clone_repo(repo, backupdir, args, git_options):
         git_options.append("--mirror")
 
     try:
-        git_args = ['git', 'clone'] + list(git_options) +\
-            [repo.ssh_url if args.ssh else repo.git_url,
-             backupdir]
+        if args.ssh:
+            url = repo.ssh_url            
+        else:
+            url = repo.git_url
+        if wiki:
+            url = url.replace(".git", ".wiki.git")
+        git_args = ['git', 'clone'] + list(git_options) + [url, backupdir]
         logging.debug("Running command: %s", git_args)
         output = subprocess.check_output(git_args, stderr=subprocess.STDOUT)
         logging.info(output.rstrip())
