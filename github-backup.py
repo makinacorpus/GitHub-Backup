@@ -51,7 +51,9 @@ def main():
         user_repos = ghs.repos.list().all()
 
     for repo in user_repos:
+        logging.debug("Getting user for %s", repo.full_name)
         repo.user = ghs.users.get(repo.owner.login)
+        logging.debug("User is %s", repo.user)
         process_repo(repo, args, tuple(git_options))
 
 
