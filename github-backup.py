@@ -50,11 +50,14 @@ def main():
     else:
         user_repos = ghs.repos.list().all()
 
+    # Fetch users while the backend has an HTTPS connection open.
     for repo in user_repos:
         logging.debug("Getting user for %s", repo.full_name)
         repo.user = ghs.users.get(repo.owner.login)
         logging.debug("User is %s", repo.user)
-        process_repo(repo, args, tuple(git_options))
+ 
+    for repo in user_repos:
+       process_repo(repo, args, tuple(git_options))
 
 
 def init_logging(args):
