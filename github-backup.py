@@ -11,17 +11,21 @@ from pygithub3 import Github
 from argparse import ArgumentParser
 import subprocess
 import os
+import logging
+import logging.config
+
 
 def main():
     """Main program"""
 
     parser = init_parser()
     args = parser.parse_args()
+    init_logging(args)
 
     git_options = args.git.split()
 
     # Process args
-    if args.cron:
+    if args.log_level not in ('info', 'debug'):
         git_options.append("--quiet")
 
     # Make the connection to Github here.
@@ -37,6 +41,7 @@ def main():
     if (args.token):
         config['token'] = args.token
 
+    logging.debug("Contacting github with: %s", config)
     ghs = Github(**config)
 
     # Get all of the given user's repos
@@ -50,6 +55,23 @@ def main():
         process_repo(repo, args, tuple(git_options))
 
 
+def init_logging(args):
+    """Set up logging based on command line perferences"""
+
+    logging_conf = {
+        'version': 1,
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+                },
+            },
+        'root': {
+            'level': args.log_level.upper(),
+            'handlers': ['console'],
+            },
+        }
+    logging.config.dictConfig(logging_conf)
+
 def init_parser():
     """
     Set up the argument parser
@@ -61,9 +83,16 @@ def init_parser():
     parser.add_argument("username", help="A Github username")
     parser.add_argument("backupdir",
                         help="The folder where you want your backups to go")
+    parser.add_argument("--log-level",
+                        choices=["debug", "info", "warn",
+                                 "error", "critical"],
+                        default="info",
+                        help="Level of logging detail.")
     parser.add_argument("-c", "--cron",
-                        help="Use this when running from a cron job",
-                        action="store_true")
+                        dest="log_level",
+                        action="store_const",
+                        const="warn",
+                        help="Synonym for --logging=warning")
     parser.add_argument("-m", "--mirror",
                         help="Create a bare mirror", action="store_true")
     parser.add_argument("-g", "--git",
@@ -92,8 +121,8 @@ def process_repo(repo, args, git_options):
     """Processes a repository. Which is to say, clones or updates an existing
     clone."""
 
-    if not args.cron:
-        print("Processing repo: %s" % (repo.full_name))
+    
+    logging.info("Processing repo: %s", repo.full_name)
 
     backupdir = os.path.join(args.backupdir, 
                              args.prefix + repo.name + args.suffix)
@@ -101,57 +130,88 @@ def process_repo(repo, args, git_options):
                           "config" if args.mirror else ".git/config")
 
     if not os.access(config, os.F_OK):
-        if not args.cron:
-            print("Repo doesn't exists, lets clone it")
-        clone_repo(repo, backupdir, args, git_options)
-    else:
-        if not args.cron:
-            print("Repo already exists, let's try to update it instead")
+        logging.info("Repo doesn't exists, lets clone it")
+        try:
+            clone_repo(repo, backupdir, args, git_options)
+        except subprocess.CalledProcessError:
+            # Don't try to update if clone failed.
+            return None
 
     update_repo(repo, backupdir, args, git_options)
-
+    return None
 
 def clone_repo(repo, backupdir, args, git_options):
     """Clones a repository using the command line git tool."""
+
+    logging.debug("In clone_repo:")
     if args.mirror:
         git_options = list(git_options)
         git_options.append("--mirror")
 
-    # TODO: handle output. 
-    output = subprocess.check_output(
-        ['git', 'clone'] + list(git_options) + 
-        [repo.ssh_url if args.ssh else repo.git_url, 
-         backupdir])
+    try:
+        git_args = ['git', 'clone'] + list(git_options) +\
+            [repo.ssh_url if args.ssh else repo.git_url, 
+             backupdir]
+        logging.debug("Running command: %s", git_args)
+        output = subprocess.check_output(git_args, stderr=subprocess.STDOUT)
+        logging.info(output.rstrip())
+    except subprocess.CalledProcessError as err:
+        logging.error("Clone of %s failed with error code: %s", 
+                      repo.full_name, err.returncode)
+        logging.error("  Command:: %s", err.cmd)
+        logging.error("  Output: %s", err.output.rstrip())
+        # reraise so the process function can avoid updating.
+        raise
 
+    return None
 
 def update_repo(repo, backupdir, args, git_options):
     """Update an existing cloned repository via the command line git tool"""
 
+    logging.debug("In update_repo:")
     saved_path = os.getcwd()
     os.chdir(backupdir)
-    print(os.getcwd())
-    # TODO: log the output? 
-    if args.mirror:
-        output = subprocess.check_output(['git', 'fetch', '--prune'] + 
-                                         list(git_options))
-    else:
-        output = subprocess.check_output(['git', 'pull'] + list(git_options))
-        
+    logging.debug("Changed to %s", backupdir)
+
+    try:
+        if args.mirror:
+            git_args = ['git', 'fetch', '--prune'] + list(git_options)
+        else:
+            git_args = ['git', 'pull'] + list(git_options)
+        logging.debug("Running command: %s", git_args)
+        output = subprocess.check_output(git_args, stderr=subprocess.STDOUT)
+        logging.info(output.rstrip())
+    except subprocess.CalledProcessError as err:
+        logging.error("Update of %s failed with error code: %s",
+                      repo.full_name, err.returncode)
+        logging.error("  Command:: %s", err.cmd)
+        logging.error("  Output: %s", err.output.rstrip())
+        os.chdir(saved_path)
+        logging.debug("Changed to %s", saved_path)
+        return None
+
     # Fetch description and owner (useful for gitweb, cgit etc.)
     config_args = ['git', 'config', '--local'] 
      
-    subprocess.check_call(config_args + ["gitweb.description", 
-                                         repo.description])
-    subprocess.check_call(config_args + ["gitweb.owner", "%s <%s>" %
-                                         (repo.user.name,
-                                          repo.user.email.encode("utf-8"))])
-    subprocess.check_call(config_args + ["cgit.name", repo.name])
-    subprocess.check_call(config_args + ["cgit.defbranch", 
-                                         repo.default_branch])
-    subprocess.check_call(config_args + ["cgit.clone-url", repo.clone_url])
+    try:
+        subprocess.check_call(config_args + ["gitweb.description", 
+                                             repo.description])
+        subprocess.check_call(config_args + ["gitweb.owner", "%s <%s>" %
+                                             (repo.user.name,
+                                              repo.user.email.encode("utf-8"))])
+        subprocess.check_call(config_args + ["cgit.name", repo.name])
+        subprocess.check_call(config_args + ["cgit.defbranch", 
+                                             repo.default_branch])
+        subprocess.check_call(config_args + ["cgit.clone-url", repo.clone_url])
+    except subprocess.CalledProcessError as err:
+        logging.error("Description update failed with error code: %s",
+                      err.returncode)
+        logging.error("  Command:: %s", err.cmd)
+        logging.error("  Output: %s", err.output.rstrip())
 
     os.chdir(saved_path)
-
+    logging.debug("Changed to %s", saved_path)
+    return None
 
 def shell_escape(dirty_str):
     """Escape a string for the shell. 
