@@ -13,7 +13,7 @@ import subprocess
 import os
 import logging
 import logging.config
-
+import re
 
 def main():
     """Main program"""
@@ -56,6 +56,7 @@ def main():
         repo.user = ghs.users.get(repo.owner.login)
         logging.debug("User is %s", repo.user)
 
+    return None
     for repo in user_repos:
         process_repo(repo, args, tuple(git_options))
 
@@ -181,7 +182,7 @@ def clone_repo(repo, backupdir, args, git_options, wiki=False):
         else:
             url = repo.git_url
         if wiki:
-            url = url.replace(".git", ".wiki.git")
+            url = re.sub(r'.git$', '.wiki.git', url)
         git_args = ['git', 'clone'] + list(git_options) + [url, backupdir]
         logging.debug("Running command: %s", git_args)
         output = subprocess.check_output(git_args, stderr=subprocess.STDOUT)
