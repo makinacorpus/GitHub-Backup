@@ -1,0 +1,1 @@
+-e git+https://github.com/copitux/python-github3.git#egg=pygithub3

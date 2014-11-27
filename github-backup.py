@@ -56,7 +56,6 @@ def main():
         repo.user = ghs.users.get(repo.owner.login)
         logging.debug("User is %s", repo.user)
 
-    return None
     for repo in user_repos:
         process_repo(repo, args, tuple(git_options))
 
@@ -148,11 +147,11 @@ def process_repo(repo, args, git_options):
 
     if repo.has_wiki:
         backupdir = os.path.join(args.backupdir,
-                                 args.prefix + repo.name 
+                                 args.prefix + repo.name
                                  + '.wiki' + args.suffix)
         config = os.path.join(backupdir,
                               "config" if args.mirror else ".git/config")
-        
+
         if not os.access(config, os.F_OK):
             logging.info("Wiki repo doesn't exists, lets clone it")
             try:
@@ -178,7 +177,7 @@ def clone_repo(repo, backupdir, args, git_options, wiki=False):
 
     try:
         if args.ssh:
-            url = repo.ssh_url            
+            url = repo.ssh_url
         else:
             url = repo.git_url
         if wiki:
